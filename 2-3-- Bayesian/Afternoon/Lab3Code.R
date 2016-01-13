@@ -33,21 +33,15 @@ rv.lnorm2<- rlnorm(20, meanlog = log(20) -log(2)^2/2 , sdlog = log(2) )
 #look at histogram of samples
 hist(rv.lnorm2)
 
-#Calculate probability density of mean = 15 given random sample 
-
-den.lnorm2<- dlnorm(x = rv.lnorm2, meanlog = log(15) -log(2)^2/2, sdlog = 2)
-
-#product
-prod(den.lnorm2)
-
 #calculate log density = log likelihood (LL) over range of values
-lnorm2.LL<- vector(length = range.length)
+norm.range<- 15:25
+lnorm2.LL<- vector(length = 11)
 for(i in 1:11){
 	lnorm2.LL[i]<- sum( dlnorm(x = rv.lnorm2, meanlog = log(norm.range[i])-log(2)^2/2, sdlog = log(2), log = T) )
 	}
 
 #plot the log density values
-plot(norm.range, norm2.LL, type = 'l', xlab = "values", ylab = "Density")
+plot(norm.range, lnorm2.LL, type = 'l', xlab = "values", ylab = "Density")
 
 
 ###### Discrete distributions
@@ -90,83 +84,13 @@ lines(ordered.x, in.logit(1.0 + 2*ordered.x), col = "red", lwd = 3)
 
 dev.off()
 
-###Some Estimation
 
-#Estimate the value of p for the first simulated data set:
-
-#### Method 1  - develop likelihood and fit using optim
-
-#Step 1 - develop likelihood 
-NLL_Bern1 = function(Par, Data){
-  # Parameters
-  p_hat = Par
-  # Log-likelihood
-  LL_i = dbinom( Data$Y, p = p_hat, size= 1, log=TRUE )
-  NLL = -1 * sum(LL_i)
-  return( NLL )
-}
-
-
-Data1 = list( 'Y'= Success) #NOTE DATA MUST BE A LIST
-
-#look at what NLL_Bern is doing - calculating the neg log like for different values of p
-NLL_Bern1(0.3, Data1)
-NLL_Bern1(0.4, Data1)
-
-try.p<- seq(0.1, 0.9, by = 0.1)
-NLL.p<- vector(length = length(try.p))
-
-for(i in 1:length(try.p)){
-	NLL.p[i]<- NLL_Bern1(try.p[i], Data1)
-}
-
-#Plot the NLL values over different hypotheses about value of p
-plot(try.p, NLL.p, type = 'l', xlab = "p", ylab = "NLL")
-
-#what is MLE = Min NLL?
-try.p[ which(NLL.p == min(NLL.p) ) ]
-
-#now let's use optim() to estimate p for us
-Start<- 0.5
-Est = optim( par=Start, fn=NLL_Bern1, Data=Data1, lower=0.001, upper = 0.99, method="L-BFGS-B", hessian=TRUE )
-# Estimated parameters
-print( Est$par ) # Estimated parameter
-
-#  Now let's create a function to estimate the intercept and slope of the relationship from the second simulated dataset:
-#Step 1 - develop likelihood 
-
-NLL_Bern2 = function(Par, Data){
-  # Parameters
-  a_hat = Par[1]
-  b_hat = Par[2]
-  # Log-likelihood
-  p2<- in.logit(a_hat + b_hat*Data$X)
-  LL_i = dbinom( Data$Y, p = p2 , size= 1, log=TRUE )
-  NLL = -1 * sum(LL_i)
-  return( NLL )
-}
-
-
-Data2<- list( 'Y'= Success2, 'X'= x.cov) #NOTE DATA MUST BE A LIST
-Start<- c(0, 1)
-Est2 = optim( par=Start, fn=NLL_Bern2, Data=Data2, lower=c(-5,-5), upper = c(5,5), method="L-BFGS-B", hessian=TRUE )
-
-Est2
-
-# Estimated parameters
-print( Est2$par ) 
-
-# Estimated standard errors
-print( sqrt(diag( solve(Est2$hessian) )) ) # square root of diagonal elements of the inverse-hessian matrix
-
-#Method 2 - fit model in R using glm()
-
+#Estimation - fit model in R using glm()
+Data2<- data.frame(Y=Success2, X = x.cov)
 fit.bern<-glm(Y~X, family = binomial, data = Data2)
 summary(fit.bern)
 
 #develop predictions for the observed data over the range of X covariates - ordered.x
-
-?predict
 
 the.new.data<- list(X = ordered.x )
 pred.bern<- predict(fit.bern, type = "link", se.fit = T, newdata = the.new.data)
@@ -207,7 +131,7 @@ sink()
 
 #Steps for JAGS run:
 # 1.Bundle data
-win.data <- list(Y = Data2$Y, n = length(Data2$Y), X = Data2$X, new.x = ordered.x, m = length(ordered.x) )
+win.data <- list(Y = Data2$Y, n = length(Data2$Y), X = Data2$X, new.x = ordered.x )
 
 # Initial values
 inits <- function() list(alpha = runif(1, -2, 2), beta = runif(1, -3, 3))
