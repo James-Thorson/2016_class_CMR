@@ -1,0 +1,314 @@
+#  Inference with R and JAGS
+#  Bayesian Models
+#  13 January 2015
+#  Noble Hendrix & Jim Thorson
+#--------------------------
+#  Day 3 Lab code
+#--------------------------
+
+#may need to set working directory
+#File = "C:/Users//Desktop/CMR/Lab/Day1/"
+
+#### Example of lognormal
+
+#start with multiple samples
+#generate multiple samples from the normal distribution
+
+rv.lnorm<- rlnorm(1, meanlog = log(20), sdlog = log(2) )
+
+##### An Important Point 
+# The mean is biased, so we have to use a bias correction of est.mean - sd^2/2
+
+#compare biased samples
+rv.lnorm.bias<- rlnorm(1000, meanlog = log(20) , sdlog = log(2) )
+mean(rv.lnorm.bias)
+
+#with unbiased samples
+rv.lnorm.unbias<- rlnorm(1000, meanlog = log(20) -log(2)^2/2 , sdlog = log(2) )
+mean(rv.lnorm.unbias)
+
+#compute 20 random variables
+rv.lnorm2<- rlnorm(20, meanlog = log(20) -log(2)^2/2 , sdlog = log(2) )
+
+#look at histogram of samples
+hist(rv.lnorm2)
+
+#Calculate probability density of mean = 15 given random sample 
+
+den.lnorm2<- dlnorm(x = rv.lnorm2, meanlog = log(15) -log(2)^2/2, sdlog = 2)
+
+#product
+prod(den.lnorm2)
+
+#calculate log density = log likelihood (LL) over range of values
+lnorm2.LL<- vector(length = range.length)
+for(i in 1:11){
+	lnorm2.LL[i]<- sum( dlnorm(x = rv.lnorm2, meanlog = log(norm.range[i])-log(2)^2/2, sdlog = log(2), log = T) )
+	}
+
+#plot the log density values
+plot(norm.range, norm2.LL, type = 'l', xlab = "values", ylab = "Density")
+
+
+###### Discrete distributions
+
+#Bernoulli
+
+# simulate example data - Bernoulli random variables of 1 and 0
+p<- 0.7
+Success = rbinom(100, size=1, prob = p)   
+
+# Plot example data
+hist(Success)
+
+#use a link function and simulate some Bernoulli RV as function of covariate:
+
+#Build a generalized linear model (GLM)
+
+#define inverse logit function to make it easier, plus see how to use functions in R
+in.logit<- function(x){
+	exp(x)/(1 + exp(x))
+}
+
+x.cov<- rnorm(100)  #100 random normal values
+p2<- in.logit(1.0 + 2*x.cov)
+Success2<- rbinom(100, size=1, prob = p2)
+
+#plot p relative to x values
+plot(x.cov, p2, ylab = "Probability", xlab = "Covariate Value", ylim = c(0,1))
+#add points for observed data
+points(x.cov, Success2, pch = 15)
+
+#output plot to use later in a presentation
+png(file="Lab1_success.png", width=4, height=4, res=200, units="in")
+plot(x.cov, p2, ylab = "Probability", xlab = "Covariate Value", ylim = c(0,1))
+#add points for observed data
+points(x.cov, Success2, pch = 15)
+#also add a line for the underlying relationship
+ordered.x<- seq(-3,3, by = 0.01)
+lines(ordered.x, in.logit(1.0 + 2*ordered.x), col = "red", lwd = 3)
+
+dev.off()
+
+###Some Estimation
+
+#Estimate the value of p for the first simulated data set:
+
+#### Method 1  - develop likelihood and fit using optim
+
+#Step 1 - develop likelihood 
+NLL_Bern1 = function(Par, Data){
+  # Parameters
+  p_hat = Par
+  # Log-likelihood
+  LL_i = dbinom( Data$Y, p = p_hat, size= 1, log=TRUE )
+  NLL = -1 * sum(LL_i)
+  return( NLL )
+}
+
+
+Data1 = list( 'Y'= Success) #NOTE DATA MUST BE A LIST
+
+#look at what NLL_Bern is doing - calculating the neg log like for different values of p
+NLL_Bern1(0.3, Data1)
+NLL_Bern1(0.4, Data1)
+
+try.p<- seq(0.1, 0.9, by = 0.1)
+NLL.p<- vector(length = length(try.p))
+
+for(i in 1:length(try.p)){
+	NLL.p[i]<- NLL_Bern1(try.p[i], Data1)
+}
+
+#Plot the NLL values over different hypotheses about value of p
+plot(try.p, NLL.p, type = 'l', xlab = "p", ylab = "NLL")
+
+#what is MLE = Min NLL?
+try.p[ which(NLL.p == min(NLL.p) ) ]
+
+#now let's use optim() to estimate p for us
+Start<- 0.5
+Est = optim( par=Start, fn=NLL_Bern1, Data=Data1, lower=0.001, upper = 0.99, method="L-BFGS-B", hessian=TRUE )
+# Estimated parameters
+print( Est$par ) # Estimated parameter
+
+#  Now let's create a function to estimate the intercept and slope of the relationship from the second simulated dataset:
+#Step 1 - develop likelihood 
+
+NLL_Bern2 = function(Par, Data){
+  # Parameters
+  a_hat = Par[1]
+  b_hat = Par[2]
+  # Log-likelihood
+  p2<- in.logit(a_hat + b_hat*Data$X)
+  LL_i = dbinom( Data$Y, p = p2 , size= 1, log=TRUE )
+  NLL = -1 * sum(LL_i)
+  return( NLL )
+}
+
+
+Data2<- list( 'Y'= Success2, 'X'= x.cov) #NOTE DATA MUST BE A LIST
+Start<- c(0, 1)
+Est2 = optim( par=Start, fn=NLL_Bern2, Data=Data2, lower=c(-5,-5), upper = c(5,5), method="L-BFGS-B", hessian=TRUE )
+
+Est2
+
+# Estimated parameters
+print( Est2$par ) 
+
+# Estimated standard errors
+print( sqrt(diag( solve(Est2$hessian) )) ) # square root of diagonal elements of the inverse-hessian matrix
+
+#Method 2 - fit model in R using glm()
+
+fit.bern<-glm(Y~X, family = binomial, data = Data2)
+summary(fit.bern)
+
+#develop predictions for the observed data over the range of X covariates - ordered.x
+
+?predict
+
+the.new.data<- list(X = ordered.x )
+pred.bern<- predict(fit.bern, type = "link", se.fit = T, newdata = the.new.data)
+
+#plot the predicted relationship - predictions on linear scale, so use in.logit to transform to the 0 to 1 scale
+plot(ordered.x, in.logit(pred.bern$fit), type = 'l', xlab = "X", ylab = "Probability", col = "blue")
+#add 95% Confidence Intervals
+lines(ordered.x, in.logit(pred.bern$fit + 1.96*pred.bern$se), lty = 2, col = "blue")
+lines(ordered.x, in.logit(pred.bern$fit - 1.96*pred.bern$se), lty = 2, col = "blue")
+#add the observed data
+points(x.cov, Success2, pch = 15)
+#add true relationship
+lines(ordered.x, in.logit(1.0 + 2*ordered.x), col = "red", lwd = 3)
+
+
+#Method 3 - fit model in JAGS
+install.library("R2jags")
+library(R2jags)
+
+# Specify model in BUGS language
+sink("GLM_Bern.jags")
+cat("
+model {
+
+# Priors
+alpha ~ dunif(-10, 10)
+beta ~ dunif(-10, 10)
+
+# Likelihood: 
+for (i in 1:n){
+   logit.p[i] <- alpha + beta * X[i]    # 1. Linear predictor
+   logit(p[i]) <- logit.p[i] 			# 2. Link function
+   Y[i] ~ dbin(p[i],1)          		# 3. Distribution for random part 
+   } #i
+}
+",fill = TRUE)
+sink()
+
+#Steps for JAGS run:
+# 1.Bundle data
+win.data <- list(Y = Data2$Y, n = length(Data2$Y), X = Data2$X, new.x = ordered.x, m = length(ordered.x) )
+
+# Initial values
+inits <- function() list(alpha = runif(1, -2, 2), beta = runif(1, -3, 3))
+
+# Parameters monitored
+params <- c("alpha", "beta")
+
+# MCMC settings
+ni <- 5000  #length of chain
+nt <- 2		#thinning 
+nb <- 1000   #burn in
+nc <- 3		#number of chains
+
+# Call JAGS from R
+bern.jags <- jags(data = win.data, inits = inits, parameters.to.save = params, model.file = "GLM_Bern.jags", n.chains = nc, n.thin = nt, n.iter = ni, n.burnin = nb) #working.directory = getwd())
+
+#Whatis the object that is returned?
+bern.jags
+
+#Some convergence diagnostics for MCMC - always a good idea
+#Get Gelman-Rubin statistic from call to object above "Rhat" should be around 1
+#also look at traceplots
+traceplot(bern.jags, mfrow=c(1,3), ask=TRUE)
+
+#To use onvergence criteria in coda package, make jags output a mcmc.list object
+bern.mcmc<- as.mcmc(bern.jags)
+#Gelman-Rubin statistic
+gelman.diag(bern.mcmc)
+#Gelman Rubin diagnostic to see how convergence relates to iteration number
+gelman.plot(bern.mcmc)
+#Geweke statistic - uses a Z-score, look for values outside of (2,2)
+geweke.diag(bern.mcmc) 
+
+#get output from the JAGS model	- also uses a mcmc.list object
+bern.sum<- summary(bern.mcmc)
+bern.sum$statistics
+bern.sum$quantile
+
+#Use model to make predictions over a range of X values
+#Steps for JAGS run:
+# 1.Bundle data
+
+X.pred<- seq(-3, 3, length = 9)
+
+
+sink("GLM_Bern2.jags")
+cat("
+model {
+
+# Priors
+alpha ~ dunif(-10, 10)
+beta ~ dunif(-10, 10)
+
+# Likelihood: 
+for (i in 1:n){
+   logit.p[i] <- alpha + beta * X[i]    # 1. Linear predictor
+   logit(p[i]) <- logit.p[i] 			# 2. Link function
+   Y[i] ~ dbin(p[i],1)          		# 3. Distribution for random part
+   logit(p.new[i]) <- alpha + beta * X[i]
+   }
+   for(j in 1:m){
+   		logit(p.pred[j]) <- alpha + beta*X.pred[j]
+   }
+}
+",fill = TRUE)
+sink()
+
+win.data <- list(Y = Data2$Y, n = length(Data2$Y), X = Data2$X, X.pred = X.pred, m = length(X.pred) )
+
+# Initial values
+inits <- function() list(alpha = runif(1, -2, 2), beta = runif(1, -3, 3))
+
+# Parameters monitored
+params <- c("alpha", "beta", "p.pred")
+
+# MCMC settings
+ni <- 5000  #length of chain
+nt <- 2		#thinning 
+nb <- 1000   #burn in
+nc <- 3		#number of chains
+
+# Call JAGS from R
+bern2.jags <- jags(data = win.data, inits = inits, parameters.to.save = params, model.file = "GLM_Bern2.jags", n.chains = nc, n.thin = nt, n.iter = ni, n.burnin = nb) #working.directory = getwd())
+
+bern2.mcmc<- as.mcmc(bern2.jags)
+#get output from the JAGS model	- also uses a mcmc.list object
+bern2.sum<- summary(bern2.mcmc)
+bern2.sum$statistics
+bern2.sum$quantile
+
+
+#Make a plot of the data and the model estimates
+par(mfrow = c(1,1))
+plot(Data2$X, Data2$Y, pch = 15, xlab = "X value", ylab = "Proportion")
+lines(X.pred, bern2.sum$quantile[4:12,3], lwd = 2, col = 2)
+lines(X.pred, bern2.sum$quantile[4:12,1], lwd = 2, col = 2, lty = 3)
+lines(X.pred, bern2.sum$quantile[4:12,5], lwd = 2, col = 2, lty = 3)
+
+
+#A method to obtain the output of each chain - use [[ ]]
+#obtain the first 7 rows of the first chain
+head(bern2.mcmc[[1]])
+
+
