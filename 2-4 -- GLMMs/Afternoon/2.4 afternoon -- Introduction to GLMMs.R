@@ -31,7 +31,7 @@ hist(Obs_i, freq=FALSE, breaks=40)
 lines( x=X, y=dnorm(X, mean=Site_Mean, sd=Site_Sd), col="red")
 for(i in 1:Nsite){
   Y = dnorm(X, mean=Mean_s[i], sd=Obs_Sd)
-  lines( x=X, y=Y/Nsite, col="blue")
+  lines( x=X, y=Y, col="blue")
 }
 
 ###### Fit using R

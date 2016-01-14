@@ -1,4 +1,6 @@
 
+library(R2jags)
+
 # Function to generate data
 Sim_Fn = function( n_per_group, n_groups=10, logSD=1, logmean=2, beta_u=1){
   # Simulate measured and unmeasured random components
@@ -15,5 +17,28 @@ Sim_Fn = function( n_per_group, n_groups=10, logSD=1, logmean=2, beta_u=1){
   return( DF )
 }
 
+# Define JAGS model
+LMM_Jags = function(){
+  # Prior distributions
+  Mean ~ dunif(0,20)
+  Sd_Site ~ dunif(0,10)
+  # Derived parameters
+  Tau_Site <- pow(Sd_Site,-2)
+  # Probability of random effects
+  for(i in 1:Nsite){
+    Mean_s[i] ~ dlnorm( Mean, Tau_Site)
+  }
+  # Probability of data
+  for(i in 1:Nobs){
+    Obs_i[i] ~ dpois( Mean_s[Site_i[i]] )
+  }
+}
+
 # Illustrate function
-Sim_Fn( n_per_group=10, n_groups=10, beta_u=1)
+SimData = Sim_Fn( n_per_group=10, n_groups=10, beta_u=1)
+
+# Generate inputs for JAGS
+Nsim = Nburnin = 1e3
+Data = list(Obs_i=SimData$count, Nobs=nrow(SimData), Site_i=SimData$site, Nsite=length(unique(SimData$site)))
+# Run jags
+Jags <- jags(model.file=LMM_Jags, working.directory=NULL, data=Data, parameters.to.save=c("Mean","Sd_Site"), n.chains=3, n.thin=1, n.iter=Nsim+Nburnin, n.burnin=Nburnin)
