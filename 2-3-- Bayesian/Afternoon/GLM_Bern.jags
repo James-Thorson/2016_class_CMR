@@ -1,0 +1,15 @@
+
+model {
+
+# Priors
+alpha ~ dunif(-10, 10)
+beta ~ dunif(-10, 10)
+
+# Likelihood: 
+for (i in 1:n){
+   logit.p[i] <- alpha + beta * X[i]    # 1. Linear predictor
+   logit(p[i]) <- logit.p[i] 			# 2. Link function
+   Y[i] ~ dbin(p[i],1)          		# 3. Distribution for random part 
+   } #i
+}
+
