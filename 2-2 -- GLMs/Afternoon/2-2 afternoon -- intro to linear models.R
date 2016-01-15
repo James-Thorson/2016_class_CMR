@@ -6,7 +6,9 @@ setwd( "C:/Users/James.Thorson/Desktop/Project_git/2016_classes_private/CMR mode
 # simulate example data
 TrueMean = 3
 TrueSize = 1
-Counts = rnbinom(100, mu=TrueMean, size=TrueSize) # Var = mu + mu^2/size
+Counts = rnbinom(20, mu=TrueMean, size=TrueSize) # Var = mu + mu^2/size
+Covariate = rnorm( length(Counts), mean=0, sd=1)
+#Counts = rpois(10000, lambda=TrueMean) # Var = mu + mu^2/size
 
 # Plot example data
 png(file="Lab_1_Counts.png", width=4, height=4, res=200, units="in")
@@ -19,16 +21,17 @@ NegLogLike_Fn = function(Par, Data){
   # Parameters
   Mean_hat = Par[1]
   Size_hat = Par[2]
+  Slope_hat = Par[3]
   # Log-likelihood
-  LogLike_i = dnbinom( Data$Counts, mu=exp(Mean_hat), size=Size_hat, log=TRUE )
+  LogLike_i = dnbinom( Data$Counts, mu=exp(Mean_hat + Data$Covariate*Slope_hat), size=Size_hat, log=TRUE )
   NegLogLike = -1 * sum(LogLike_i)
   return( NegLogLike )
 }
 # Run model
-Data = list( 'Counts'=Counts )
-Start = c(1,1)
+Data = list( 'Counts'=Counts, 'Covariate'=Covariate )
+Start = c(1,1, 1)
 NegLogLike_Fn( Par=Start, Data=Data)
-Opt = optim( par=Start, fn=NegLogLike_Fn, Data=Data, lower=c(0.01,0.01), upper=Inf, method="L-BFGS-B", hessian=TRUE )
+Opt = optim( par=Start, fn=NegLogLike_Fn, Data=Data, lower=c(0.01,0.01,-Inf), upper=Inf, method="L-BFGS-B", hessian=TRUE )
 # Estimated parameters
 print( Opt$par ) # Estimated parameters
 # Estimated standard errors
@@ -58,16 +61,13 @@ NegBin = function(){
   for(i in 1:Nobs){
     Counts[i] ~ dnegbin(p,r)
   }
-  # Predictive distribution
-  Pred ~ dnegbin(p,r)
 }
 
-
 # Generate inputs for JAGS
-Nsim = Nburnin = 1e3
+Nsim = Nburnin = 5e2
 Data = list(Counts=Counts, Nobs=length(Counts))
 # Run jags
-Jags <- jags(model.file=NegBin, working.directory=NULL, data=Data, parameters.to.save=c("Ln_Mean","Size","Pred"), n.chains=3, n.thin=1, n.iter=Nsim+Nburnin, n.burnin=Nburnin)
+Jags <- jags(model.file=NegBin, working.directory=NULL, data=Data, parameters.to.save=c("Ln_Mean","Size"), n.chains=3, n.thin=1, n.iter=Nsim+Nburnin, n.burnin=Nburnin)
 # Look at estimates
 Jags$BUGSoutput$summary
 

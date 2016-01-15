@@ -17,9 +17,9 @@ NegLogLike_Fn = function(Par, Data){
 DF = NULL
 for(i in 1:1000){
   # simulate example data
-  TrueMean = 3
+  log_TrueMean = log(3)
   TrueSize = 1
-  Counts = rnbinom(100, mu=TrueMean, size=TrueSize) # Var = mu + mu^2/size
+  Counts = rnbinom(100, mu=exp(log_TrueMean), size=TrueSize) # Var = mu + mu^2/size
 
   # Run model
   Data = list( 'Counts'=Counts )
@@ -30,7 +30,7 @@ for(i in 1:1000){
   Hat =  Opt$par[1]
   SE = sqrt(diag( solve(Opt$hessian) ))[1] # square root of diagonal elements of the inverse-hessian matrix
   CI_mult = qnorm(1 - 0.05/2)
-  InsideTF = ifelse( exp(Hat + CI_mult*SE)>TrueMean & exp(Hat - CI_mult*SE)<TrueMean, TRUE, FALSE)
+  InsideTF = ifelse( (Hat + CI_mult*SE)>log_TrueMean & (Hat - CI_mult*SE)<log_TrueMean, TRUE, FALSE)
   DF = rbind(DF, c(Hat, SE, InsideTF))
 }
 mean(DF[,3])
