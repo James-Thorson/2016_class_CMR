@@ -1,0 +1,33 @@
+model{
+  for(i in 1:98) {
+    Abun[i]~dpois(mu[i])
+    Aprd[i] ~ dpois(mu[i])
+    log(mu[i])<-alpha +
+                Month1[i]*b[1] + Month2[i]*b[2]+
+                TDay1[i]*b[3] + TDay2[i]*b[4]+
+                Month1[i]*TDay1[i]*b[5]+
+                W[Wind2[i]]+S[Site[i]]
+    Aprd[i] ~ dpois(mu[i])
+    e.obs[i]  <- (Abun[i]-mu[i])/sqrt(mu[i]) 
+    p2.obs[i] <- e.obs[i] * e.obs[i]
+    e.prd[i]  <- (Aprd[i]-mu[i])/sqrt(mu[i]) 
+    p2.prd[i] <- e.prd[i] * e.prd[i]
+  }
+  alpha~dnorm(0,1.0E-6)
+  for(j in 1:5) {
+    b[j]~dnorm(0.0,1.0E-6)
+    }
+  for (i in 2:4){
+    W[i]~dnorm(0.0,1.0E-6)
+    }
+  W[1]<-0
+  S[1]<-0
+  S[2]~dnorm(0.0,1.0E-6)
+  SS      <-sum(p2.obs[1:98])
+  SS.prd  <-sum(p2.prd[1:98]) 
+  }
+
+  
+  
+
+  

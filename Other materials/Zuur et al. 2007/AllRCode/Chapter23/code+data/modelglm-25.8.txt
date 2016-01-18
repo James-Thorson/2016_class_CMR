@@ -1,0 +1,73 @@
+model {
+# ---- error (Pearson residual) autocorrelation
+  for(k in 1:3) {
+    for (t in k+1:N) { 
+      p1[k,t] <- e.obs[t]*e.obs[t-k]      
+    }
+    auto [1,k] <- sum(p1[k,(N11+k):N12])/sum(p2.obs[N11:N12])
+    auto2[1,k] <- auto[1,k]*auto[1,k]
+    auto [2,k] <- sum(p1[k,(N21+k):N])  /sum(p2.obs[N21:N22])
+    auto2[2,k] <- auto[2,k]*auto[2,k]
+  }
+# ---- Ljung-Box test for outocorrelation
+  BP.s1 <- (N12-N11+1)*sum(auto2[1,])
+  BP.s2 <- (N22-N21+1)*sum(auto2[2,])
+# ------------ Likelihood ----------------
+  for(i in 1:N) {
+    Abun[i]~dnegbin(p[i],size)
+    Aprd[i]~dnegbin(p[i],size)
+    log(mu[i])<-y[i]
+    p[i]<-size/(size+mu[i])
+    V[i]  <- mu[i]+mu[i]*mu[i]/size
+    e.obs[i]<-(Abun[i]-mu[i])/sqrt(V[i]); p2.obs[i] <- e.obs[i] * e.obs[i]
+    e.prd[i]<-(Aprd[i]-mu[i])/sqrt(V[i]); p2.prd[i] <- e.prd[i] * e.prd[i]
+  }
+# ------------ mean (site1) ------------------
+  y[N11]~dnorm(nu[N11],u.tau) 
+  u[N11]<-y[N11]-nu[N11]
+  for(i in N11+1:N12) {
+    y.mean[i]<-nu[i]+rho[i]*(y[i-1]-nu[i-1])
+    y[i]~dnorm(y.mean[i],u.tau)
+    u[i]<-y[i]-y.mean[i]
+    d[i]<-52*(WeekTime[i]-WeekTime[i-1])
+    rho[i]<-pow(abs(rho1),d[i])*(step(rho1)-step(-rho1))
+  }
+# ------------ mean (site2) ------------------
+  y[N21]~dnorm(nu[N21],u.tau) 
+  u[N21]<-y[N21]-nu[N21]
+  for(i in N21+1:N22) {
+    y.mean[i]<-nu[i]+rho[i]*(y[i-1]-nu[i-1])
+    y[i]~dnorm(y.mean[i],u.tau)
+    u[i]<-y[i]-y.mean[i]
+    d[i]<-52*(WeekTime[i]-WeekTime[i-1])
+    rho[i]<-pow(abs(rho2),d[i])*(step(rho2)-step(-rho2))
+  }
+# ------------ linear predictor ----------
+  for(i in 1:N) {
+    nu[i]<- alpha
+           +Month1[i]    *b[1] + Month2[i]    *b[2]
+           +TDay1[i]*b[3] + TDay2[i]*b[4]
+           +Month1[i]*TDay1[i]*b[5]
+           +W[Wind2[i]]+S[Site[i]]
+  }
+# ------------- Fixed effects guess ------------------
+  alpha~dnorm(5.0,1.0E-6) 
+  for(j in 1:5) {
+    b[j]~dnorm(0.0,1.0E-6) 
+  }
+  S[1]<-0.0  # referenc effect
+  S[2]~dnorm(0.0,1.0E-6) 
+  W[1]<-0 # referenc effect
+  for(i in 2:4) {
+    W[i]~dnorm(0.0,1.0E-6) 
+  }
+# ------------- random error variance & correlation
+  rho1~dunif(-1,1)
+  rho2~dunif(-1,1)
+  u.tau~dgamma(0.001, 0.001)
+  u.sigma<-1/u.tau
+  size ~ dgamma(0.001,0.001)
+# ---- predictive check on overdispersion
+  SS      <-sum(p2.obs[1:N])
+  SS.prd  <-sum(p2.prd[1:N])
+}
