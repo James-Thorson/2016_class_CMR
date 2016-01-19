@@ -52,7 +52,7 @@ sum(ranef(fm.occ)@post[,2,])
 #####
 #Fit model in JAGS
 library(R2jags)
-# Specify model in JAGS  languagesink("model.txt")cat("model {# Priorsalpha.occ ~ dunif(-10, 10)beta.occ ~ dunif(-10, 10)alpha.p ~ dunif(-10, 10)beta.p ~ dunif(-10, 10)# Likelihood
+# Specify model in JAGS  languagesink("model.txt")cat("model {# Priors - alpha.occ ~ dnorm(0, 0.4)beta.occ ~ dnorm(0, 0.4)alpha.p ~ dnorm(0, 0.4)beta.p ~ dnorm(0, 0.4)# Likelihood
 
 for (i in 1:R) {   #process portion of the model
    logit(psi[i]) <- alpha.occ + beta.occ * vegHt[i]
