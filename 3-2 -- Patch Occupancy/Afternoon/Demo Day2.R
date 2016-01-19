@@ -49,6 +49,13 @@ sum(ranef(fm.occ)@post[,2,])
 
 # Predictions of probability occupied for new values of vegHt, say 1.2 and 3.1newdat <- data.frame(vegHt=c(1.2, 3.1))predict(fm.occ, type="state", newdata=newdat)
 
+
+
+#look at prior distribution for coefficients
+precision<- 0.4
+hist(plogis(rnorm(1000, 0, sd = sqrt(1/precision)) ) )
+
+
 #####
 #Fit model in JAGS
 library(R2jags)
