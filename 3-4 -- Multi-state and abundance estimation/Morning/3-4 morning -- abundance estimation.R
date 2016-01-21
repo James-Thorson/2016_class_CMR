@@ -16,7 +16,7 @@ library(R2jags)
 # Models with constant parameters
 # Define parameter values
 n_occasions <- 6                   # Number of capture occasions
-n_marked <- rep(50, n_occasions-1)   # Annual number of newly marked individuals
+n_marked <- rep(100, n_occasions-1)   # Annual number of newly marked individuals
 survival_prob = 0.6
 detection_prob = 0.4
 
@@ -29,7 +29,7 @@ simul.cjs <- function(survival_prob, detection_prob, n_marked){
   # Fill the CH matrix
   for (i in 1:nrow(y_it)){
     z_it[i, mark_occasion[i]] = 1      # Write an 1 at the release occasion
-    y_it[i, mark_occasion[i]] = 1
+    y_it[i, mark_occasion[i]] = rbinom(1, size=1, prob=detection_prob*z_it[i, mark_occasion[i]])
     if( mark_occasion[i]!=n_occasions ){
       for(t in (mark_occasion[i]+1):n_occasions){
         # Bernoulli trial: does individual survive occasion?
@@ -39,7 +39,9 @@ simul.cjs <- function(survival_prob, detection_prob, n_marked){
       } #t
     }
   } #i
-  Return = list( "z_it"=z_it, "y_it"=y_it)
+  #
+  which_observed = which( rowSums(y_it)>0 )
+  Return = list( "z_it"=z_it[which_observed,], "y_it"=y_it[which_observed,], "z_it_total"=z_it, "y_it_total"=y_it)
   return(Return)
 }
 
@@ -94,15 +96,26 @@ inits <- function(){list(z_it=known.state.cjs(SimList$y_it))}
 parameters <- c("survival_prob", "detection_prob")
 
 # MCMC settings
-ni <- 10000
-nt <- 6
-nb <- 5000
+ni <- 2000
+nt <- 1
+nb <- 1000
 nc <- 3
 
 # Call JAGS from R (BRT 1 min)
 Jags <- jags(data=jags_data, inits=inits, parameters=parameters, model.file=CJS, n.chains=nc, n.thin=nt, n.iter=ni, n.burnin=nb, working.directory=getwd())
 
-# Summarize posteriors
-print(cjs.c.c, digits = 3)
+###########################
+# Estimate total abundance
+###########################
+
+# True number alive
+Ntrue_t = colSums( SimList$z_it_total)
+
+# Estimate number alive
+Nknown_t = colSums( known.state.cjs(SimList$y_it), na.rm=TRUE)
+Nfirst_t = table( first_mark )
+Ntotal_t = Nknown_t + Nfirst_t * mean(1/Jags$BUGSoutput$sims.list$detection_prob[,1])
+Ntotal_t_CI = Nknown_t + outer(Nfirst_t, quantile(1/Jags$BUGSoutput$sims.list$detection_prob[,1], prob=c(0.025,0.5,0.975)))
+
 
 
