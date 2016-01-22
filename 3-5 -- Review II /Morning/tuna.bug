@@ -1,0 +1,41 @@
+model 
+{
+
+#time step [1] conditions
+Pmed[1] <-0
+P[1]~dlnorm(Pmed[1], isigma2)T(0.05,1.6)
+ 
+#time steps of model  
+for( t in 2 : N )
+ 	{
+      Pmed[t] <- log(max(P[t - 1] + (r * P[t - 1]) * (1 - P[t - 1]) - C[t - 1] / K, 0.001) )	
+	 P[t] ~ dlnorm(Pmed[t],isigma2)T(0.05,1.5)
+ 	}
+for( t in 1 : N )
+	{
+	Imed[t] <- log((q * K) * P[t])
+ 	I[t] ~ dlnorm(Imed[t],itau2)
+	
+ 	#posterior predictions
+ 	index[t]<- log(q*K*P[t])
+	I.new[t]~dlnorm(index[t], itau2)
+	}
+
+ #priors 
+ r ~ dlnorm( -1.38, 3.845)I(0.01,1.2)
+ isigma2 ~ dgamma(3.785,0.0102)
+ sigma2 <- 1/isigma2
+ itau2 ~ dgamma(1.709,0.00861)
+ tau2 <- 1/itau2
+ iq ~ dgamma(0.001,0.001)I( 0.5,100)
+  q <- 1/iq
+  K ~ dlnorm(5.0429,3.7603)I(10,1000)
+
+#additional parameters and preditions
+MSP <-  r*K/4
+EMSP <-  r/(2*q)
+P1990 <-  P[N] + r*P[N]*(1-P[N]) - C[N]/K
+B1990 <-  P1990*K
+ }
+
+
